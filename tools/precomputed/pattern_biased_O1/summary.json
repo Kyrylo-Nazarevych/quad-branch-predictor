@@ -1,0 +1,14 @@
+{
+  "program": "pattern_biased",
+  "opt": "-O1",
+  "march": "rv32im",
+  "spike_status": 0,
+  "instructions": 47226,
+  "branches": 8000,
+  "static_branches": 2,
+  "taken_rate": 0.0508,
+  "pc_bits": "7:0",
+  "main_result": 0,
+  "log_lines": 50000,
+  "max_instructions": 2000000
+}

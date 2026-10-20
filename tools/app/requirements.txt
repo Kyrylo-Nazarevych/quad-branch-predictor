@@ -1,0 +1,5 @@
+streamlit>=1.66        # stateful tabs (st.tabs key=) need a recent version; tested on 1.66.0
+plotly>=5.20
+pandas>=2.1
+numpy>=1.26
+pytest>=8

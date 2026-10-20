@@ -1,0 +1,16 @@
+pc,count,taken,taken_rate,transition_rate,function,line,mnemonic
+800001c4,2400,2200,0.9167,0.1663,loop12,pattern_all_in_one.c:35,bne
+8000015c,2000,1000,0.5,1.0,alternating,pattern_all_in_one.c:22,beq
+80000154,2000,1,0.0005,0.0005,alternating,pattern_all_in_one.c:21,beq
+80000308,2000,1032,0.516,0.4997,random_flip,pattern_all_in_one.c:60,beq
+800002fc,2000,1,0.0005,0.0005,random_flip,pattern_all_in_one.c:59,beq
+80000368,2000,201,0.1005,0.1856,biased,pattern_all_in_one.c:65,beq
+8000035c,2000,1,0.0005,0.0005,biased,pattern_all_in_one.c:64,beq
+80000214,1500,735,0.49,0.5063,correlated,pattern_all_in_one.c:42,beq
+80000208,1500,1,0.0007,0.0007,correlated,pattern_all_in_one.c:40,beq
+800002a0,1500,752,0.5013,0.511,xor_pattern,pattern_all_in_one.c:52,beq
+8000028c,1500,1,0.0007,0.0007,xor_pattern,pattern_all_in_one.c:49,beq
+8000027c,752,376,0.5,0.474,xor_pattern,pattern_all_in_one.c:53,beq
+800002a8,748,381,0.5094,0.4779,xor_pattern,pattern_all_in_one.c:53,beq
+80000198,500,499,0.998,0.002,loop4,pattern_all_in_one.c:28,bne
+800001b4,200,1,0.005,0.005,loop12,pattern_all_in_one.c:34,beq

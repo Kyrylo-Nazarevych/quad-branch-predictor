@@ -1,0 +1,8 @@
+pc,count,taken,taken_rate,transition_rate,function,line,mnemonic
+80000320,9848,9297,0.944,0.1118,safe,nqueens.c:9,blt
+800002d8,9297,1591,0.1711,0.2969,safe,nqueens.c:11,beq
+800002ec,7706,721,0.0936,0.1769,safe,nqueens.c:11,beq
+80000300,6985,6264,0.8968,0.1853,safe,nqueens.c:11,bne
+800003d0,4096,3584,0.875,0.2166,solve,nqueens.c:19,bge
+8000037c,3584,3033,0.8463,0.2677,solve,nqueens.c:20,beq
+80000354,552,512,0.9275,0.1452,solve,nqueens.c:17,bne

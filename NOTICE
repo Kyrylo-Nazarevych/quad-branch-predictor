@@ -1,0 +1,24 @@
+Quad Branch Predictor
+Copyright 2026 Ilma Kule, Kyrylo Nazarevych, Vitalii Haponenko, Märten Erik Loor
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This project includes or derives from the following third-party work:
+
+* rtl/perceptron_704.v: the perceptron branch predictor of Tiny Tapeout design #704,
+  Copyright (c) 2024 Tristan Robitaille, Apache License 2.0
+  https://github.com/TristanRobitaille/tt_branch_pred
+  Modified: module renamed, declarations reordered, additional resets, lint fixes.
+
+* rtl/latch_memory.v: the latch RAM from tt06-memory by Michael Bell, Apache License 2.0
+  https://github.com/MichaelBell/tt06-memory
+  Modified: module renamed, simulation/synthesis selection, lint waiver.
+
+* fpga/constraints/Nexys-4-DDR-Master.xdc: Digilent Inc., MIT License
+  https://github.com/Digilent/digilent-xdc
+
+* The chip follows the Tiny Tapeout project template (ttsky-verilog-template), Apache License 2.0
+  https://github.com/TinyTapeout/ttsky-verilog-template
+
+The branch traces in tools/precomputed/ and verification/traces/ were produced with the Spike RISC-V ISA simulator
+(https://github.com/riscv-software-src/riscv-isa-sim) from the C programs in this repository; Spike itself is not included.

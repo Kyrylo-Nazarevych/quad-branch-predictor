@@ -1,0 +1,10 @@
+pc,count,taken,taken_rate,transition_rate,function,line,mnemonic
+80000168,2521,1276,0.5061,0.35,quicksort,quicksort.c:17,bge
+80000180,2521,2326,0.9226,0.1091,quicksort,quicksort.c:16,bne
+8000024c,300,299,0.9967,0.0033,main,quicksort.c:26,bne
+8000027c,299,299,1.0,0.0,main,quicksort.c:29,bge
+8000026c,299,1,0.0033,0.0034,main,quicksort.c:28,beq
+80000138,295,161,0.5458,0.6429,quicksort,quicksort.c:14,bge
+80000154,195,0,0.0,0.0,quicksort,quicksort.c:16,bge
+800001a4,195,99,0.5077,0.4639,quicksort,quicksort.c:20,bge
+800001b8,96,61,0.6354,0.5895,quicksort,quicksort.c:14,blt

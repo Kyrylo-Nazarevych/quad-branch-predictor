@@ -1,0 +1,14 @@
+{
+  "program": "matmul",
+  "opt": "-O1",
+  "march": "rv32im",
+  "spike_status": 0,
+  "instructions": 42426,
+  "branches": 5811,
+  "static_branches": 6,
+  "taken_rate": 0.9112,
+  "pc_bits": "7:0",
+  "main_result": 40,
+  "log_lines": 45000,
+  "max_instructions": 2000000
+}

@@ -1,0 +1,14 @@
+{
+  "program": "strsearch",
+  "opt": "-O1",
+  "march": "rv32im",
+  "spike_status": 0,
+  "instructions": 35325,
+  "branches": 6575,
+  "static_branches": 5,
+  "taken_rate": 0.6037,
+  "pc_bits": "7:0",
+  "main_result": 10,
+  "log_lines": 40000,
+  "max_instructions": 2000000
+}

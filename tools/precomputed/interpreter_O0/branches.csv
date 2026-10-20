@@ -1,0 +1,9 @@
+pc,count,taken,taken_rate,transition_rate,function,line,mnemonic
+800002e0,4805,4403,0.9163,0.1672,run,interpreter.c:21,bne
+8000032c,4403,2403,0.5458,0.7269,run,interpreter.c:22,bne
+80000388,2403,1601,0.6663,0.6665,run,interpreter.c:23,bne
+800003e8,1601,1201,0.7502,0.5,run,interpreter.c:24,bne
+8000044c,1201,801,0.6669,0.6667,run,interpreter.c:25,bne
+800004b0,801,401,0.5006,0.9988,run,interpreter.c:26,bne
+80000514,401,1,0.0025,0.0025,run,interpreter.c:27,bne
+8000055c,400,1,0.0025,0.0025,run,interpreter.c:27,beq

@@ -1,0 +1,14 @@
+{
+  "program": "quicksort",
+  "opt": "-O2",
+  "march": "rv32im",
+  "spike_status": 0,
+  "instructions": 33764,
+  "branches": 6721,
+  "static_branches": 9,
+  "taken_rate": 0.6728,
+  "pc_bits": "7:0",
+  "main_result": 6,
+  "log_lines": 35000,
+  "max_instructions": 2000000
+}

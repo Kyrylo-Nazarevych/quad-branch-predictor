@@ -1,0 +1,10 @@
+{
+  "verilog.linting.linter": "verilator",
+  "verilog.formatting.verilogHDL.formatter": "verible-verilog-format",
+  // FPGA dashboard and Streamlit app open inside VS Code (Simple Browser) instead of an external browser
+  "workbench.externalUriOpeners": {
+    "localhost:8765": "simpleBrowser.open",
+    "localhost:8501": "simpleBrowser.open"
+  },
+  "python.defaultInterpreterPath": "${workspaceFolder}/fpga/.venv/Scripts/python.exe"
+}

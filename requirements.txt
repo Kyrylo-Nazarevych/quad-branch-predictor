@@ -1,0 +1,3 @@
+# PC side: board link, dashboard and the Streamlit analysis app
+pyserial>=3.5
+-r tools/app/requirements.txt

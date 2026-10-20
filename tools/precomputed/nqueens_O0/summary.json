@@ -1,0 +1,14 @@
+{
+  "program": "nqueens",
+  "opt": "-O0",
+  "march": "rv32im",
+  "spike_status": 0,
+  "instructions": 328688,
+  "branches": 42068,
+  "static_branches": 7,
+  "taken_rate": 0.5943,
+  "pc_bits": "7:0",
+  "main_result": 40,
+  "log_lines": 330000,
+  "max_instructions": 2000000
+}

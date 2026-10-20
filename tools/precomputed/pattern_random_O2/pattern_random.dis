@@ -1,0 +1,105 @@
+
+precomputed/pattern_random_O2/pattern_random.elf:     file format elf32-littleriscv
+
+
+Disassembly of section .text:
+
+80000000 <_start>:
+80000000:	01000117          	auipc	sp,0x1000
+80000004:	00010113          	addi	sp,sp,0 # 81000000 <__stack_top>
+80000008:	00000297          	auipc	t0,0x0
+8000000c:	18828293          	addi	t0,t0,392 # 80000190 <__bss_start>
+80000010:	00000317          	auipc	t1,0x0
+80000014:	18830313          	addi	t1,t1,392 # 80000198 <__bss_end>
+80000018:	0062f863          	bgeu	t0,t1,80000028 <_start+0x28>
+8000001c:	0002a023          	sw	zero,0(t0)
+80000020:	00428293          	addi	t0,t0,4
+80000024:	ff5ff06f          	jal	zero,80000018 <_start+0x18>
+80000028:	0e8000ef          	jal	ra,80000110 <main>
+8000002c:	00000297          	auipc	t0,0x0
+80000030:	16428293          	addi	t0,t0,356 # 80000190 <__bss_start>
+80000034:	00a2a023          	sw	a0,0(t0)
+80000038:	00100513          	addi	a0,zero,1
+8000003c:	00000297          	auipc	t0,0x0
+80000040:	14428293          	addi	t0,t0,324 # 80000180 <tohost>
+80000044:	00a2a023          	sw	a0,0(t0)
+80000048:	0000006f          	jal	zero,80000048 <_start+0x48>
+
+8000004c <memset>:
+8000004c:	0ff5f593          	andi	a1,a1,255
+80000050:	00c50733          	add	a4,a0,a2
+80000054:	00050793          	addi	a5,a0,0
+80000058:	00060863          	beq	a2,zero,80000068 <memset+0x1c>
+8000005c:	00178793          	addi	a5,a5,1
+80000060:	feb78fa3          	sb	a1,-1(a5)
+80000064:	fef71ce3          	bne	a4,a5,8000005c <memset+0x10>
+80000068:	00008067          	jalr	zero,0(ra)
+
+8000006c <memcpy>:
+8000006c:	02060063          	beq	a2,zero,8000008c <memcpy+0x20>
+80000070:	00c50633          	add	a2,a0,a2
+80000074:	00050793          	addi	a5,a0,0
+80000078:	0005c703          	lbu	a4,0(a1)
+8000007c:	00178793          	addi	a5,a5,1
+80000080:	00158593          	addi	a1,a1,1
+80000084:	fee78fa3          	sb	a4,-1(a5)
+80000088:	fef618e3          	bne	a2,a5,80000078 <memcpy+0xc>
+8000008c:	00008067          	jalr	zero,0(ra)
+
+80000090 <memmove>:
+80000090:	02b57463          	bgeu	a0,a1,800000b8 <memmove+0x28>
+80000094:	00c506b3          	add	a3,a0,a2
+80000098:	00050793          	addi	a5,a0,0
+8000009c:	02060e63          	beq	a2,zero,800000d8 <memmove+0x48>
+800000a0:	0005c703          	lbu	a4,0(a1)
+800000a4:	00178793          	addi	a5,a5,1
+800000a8:	00158593          	addi	a1,a1,1
+800000ac:	fee78fa3          	sb	a4,-1(a5)
+800000b0:	fed798e3          	bne	a5,a3,800000a0 <memmove+0x10>
+800000b4:	00008067          	jalr	zero,0(ra)
+800000b8:	00c507b3          	add	a5,a0,a2
+800000bc:	00c585b3          	add	a1,a1,a2
+800000c0:	00060c63          	beq	a2,zero,800000d8 <memmove+0x48>
+800000c4:	fff5c703          	lbu	a4,-1(a1)
+800000c8:	fff78793          	addi	a5,a5,-1
+800000cc:	fff58593          	addi	a1,a1,-1
+800000d0:	00e78023          	sb	a4,0(a5)
+800000d4:	fef518e3          	bne	a0,a5,800000c4 <memmove+0x34>
+800000d8:	00008067          	jalr	zero,0(ra)
+
+800000dc <memcmp>:
+800000dc:	02060663          	beq	a2,zero,80000108 <memcmp+0x2c>
+800000e0:	00c50633          	add	a2,a0,a2
+800000e4:	0080006f          	jal	zero,800000ec <memcmp+0x10>
+800000e8:	02c50063          	beq	a0,a2,80000108 <memcmp+0x2c>
+800000ec:	00054783          	lbu	a5,0(a0)
+800000f0:	0005c703          	lbu	a4,0(a1)
+800000f4:	00150513          	addi	a0,a0,1
+800000f8:	00158593          	addi	a1,a1,1
+800000fc:	fee786e3          	beq	a5,a4,800000e8 <memcmp+0xc>
+80000100:	40e78533          	sub	a0,a5,a4
+80000104:	00008067          	jalr	zero,0(ra)
+80000108:	00000513          	addi	a0,zero,0
+8000010c:	00008067          	jalr	zero,0(ra)
+
+80000110 <main>:
+80000110:	80000837          	lui	a6,0x80000
+80000114:	16082783          	lw	a5,352(a6) # 80000160 <state>
+80000118:	000016b7          	lui	a3,0x1
+8000011c:	fa068693          	addi	a3,a3,-96 # fa0 <_start-0x7ffff060>
+80000120:	80000537          	lui	a0,0x80000
+80000124:	00100593          	addi	a1,zero,1
+80000128:	00d79713          	slli	a4,a5,0xd
+8000012c:	00f74733          	xor	a4,a4,a5
+80000130:	01175793          	srli	a5,a4,0x11
+80000134:	00e7c7b3          	xor	a5,a5,a4
+80000138:	00579713          	slli	a4,a5,0x5
+8000013c:	0017f613          	andi	a2,a5,1
+80000140:	fff68693          	addi	a3,a3,-1
+80000144:	00f747b3          	xor	a5,a4,a5
+80000148:	00060463          	beq	a2,zero,80000150 <main+0x40>
+8000014c:	18b52a23          	sw	a1,404(a0) # 80000194 <sink>
+80000150:	fc069ce3          	bne	a3,zero,80000128 <main+0x18>
+80000154:	16f82023          	sw	a5,352(a6)
+80000158:	00000513          	addi	a0,zero,0
+8000015c:	00008067          	jalr	zero,0(ra)

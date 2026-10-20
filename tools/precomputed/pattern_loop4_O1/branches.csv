@@ -1,0 +1,2 @@
+pc,count,taken,taken_rate,transition_rate,function,line,mnemonic
+8000013c,1000,999,0.999,0.001,main,pattern_loop4.c:6,bne

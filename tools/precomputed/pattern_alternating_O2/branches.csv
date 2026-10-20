@@ -1,0 +1,4 @@
+pc,count,taken,taken_rate,transition_rate,function,line,mnemonic
+80000134,2000,1000,0.5,1.0,main,pattern_alternating.c:7,bne
+80000140,1000,1000,1.0,0.0,main,pattern_alternating.c:6,bne
+8000012c,1000,1,0.001,0.001,main,pattern_alternating.c:6,beq

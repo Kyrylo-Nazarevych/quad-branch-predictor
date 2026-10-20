@@ -1,0 +1,14 @@
+{
+  "program": "interpreter",
+  "opt": "-O1",
+  "march": "rv32im",
+  "spike_status": 0,
+  "instructions": 109719,
+  "branches": 5205,
+  "static_branches": 2,
+  "taken_rate": 0.0004,
+  "pc_bits": "7:0",
+  "main_result": 24,
+  "log_lines": 110000,
+  "max_instructions": 2000000
+}

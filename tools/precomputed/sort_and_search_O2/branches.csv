@@ -1,0 +1,13 @@
+pc,count,taken,taken_rate,transition_rate,function,line,mnemonic
+80000170,19624,9698,0.4942,0.3535,bubble_sort,sort_and_search.c:11,bge
+80000184,19624,19448,0.991,0.0179,bubble_sort,sort_and_search.c:10,bne
+800001e0,2251,65,0.0289,0.0573,binary_search,sort_and_search.c:19,beq
+800001e4,2186,1056,0.4831,0.5089,binary_search,sort_and_search.c:20,bge
+800001ec,1130,1046,0.9257,0.1488,binary_search,sort_and_search.c:17,bge
+80000228,1056,905,0.857,0.2863,binary_search,sort_and_search.c:17,bge
+800001f4,235,235,1.0,0.0,main,sort_and_search.c:28,bne
+80000154,200,199,0.995,0.005,main,sort_and_search.c:25,bne
+80000214,200,199,0.995,0.005,main,sort_and_search.c:30,bne
+80000188,176,1,0.0057,0.0057,bubble_sort,sort_and_search.c:12,beq
+80000190,175,175,1.0,0.0,bubble_sort,sort_and_search.c:8,bne
+80000240,65,64,0.9846,0.0156,main,sort_and_search.c:28,bne

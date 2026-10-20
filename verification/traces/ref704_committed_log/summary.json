@@ -1,0 +1,8 @@
+{
+  "program": "reference (704 committed spike_log.txt)",
+  "opt": "-O0",
+  "march": "rv32i_zicsr_zifencei",
+  "branches": 1271,
+  "taken_rate": 0.6491,
+  "pc_bits": "7:0"
+}

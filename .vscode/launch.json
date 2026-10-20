@@ -1,0 +1,38 @@
+{
+  // F5 in the Run and Debug view: start a server and open its page in VS Code's Simple Browser
+  // (settings.json maps localhost:8765 and :8501 to the Simple Browser). Needs the Python Debugger extension.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Dashboard: board",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/fpga/host/bpdash.py",
+      "args": ["--http", "8765"],
+      "python": "${workspaceFolder}/fpga/.venv/Scripts/python.exe",
+      "console": "integratedTerminal",
+      "serverReadyAction": { "pattern": "dashboard on (http://\\S+)", "uriFormat": "%s", "action": "openExternally" }
+    },
+    {
+      "name": "Dashboard: mock board",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/fpga/host/bpdash.py",
+      "args": ["--mock", "--http", "8765"],
+      "python": "${workspaceFolder}/fpga/.venv/Scripts/python.exe",
+      "console": "integratedTerminal",
+      "serverReadyAction": { "pattern": "dashboard on (http://\\S+)", "uriFormat": "%s", "action": "openExternally" }
+    },
+    {
+      "name": "Streamlit app",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "streamlit",
+      "args": ["run", "app/app.py", "--server.port", "8501", "--server.headless", "true"],
+      "cwd": "${workspaceFolder}/tools",
+      "python": "${workspaceFolder}/fpga/.venv/Scripts/python.exe",
+      "console": "integratedTerminal",
+      "serverReadyAction": { "pattern": "Local URL: (http://\\S+)", "uriFormat": "%s", "action": "openExternally" }
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "program": "pattern_loop4",
+  "opt": "-O1",
+  "march": "rv32im",
+  "spike_status": 0,
+  "instructions": 9029,
+  "branches": 1000,
+  "static_branches": 1,
+  "taken_rate": 0.999,
+  "pc_bits": "7:0",
+  "main_result": 0,
+  "log_lines": 10000,
+  "max_instructions": 2000000
+}

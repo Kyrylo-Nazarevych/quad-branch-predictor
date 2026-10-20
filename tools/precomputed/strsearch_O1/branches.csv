@@ -1,0 +1,6 @@
+pc,count,taken,taken_rate,transition_rate,function,line,mnemonic
+80000150,2000,1999,0.9995,0.0005,main,strsearch.c:26,bne
+8000018c,1997,1533,0.7677,0.3622,count_matches,strsearch.c:19,bne
+80000180,1997,1,0.0005,0.0005,count_matches,strsearch.c:17,beq
+80000194,464,347,0.7478,0.3542,count_matches,strsearch.c:19,bne
+8000019c,117,89,0.7607,0.3707,count_matches,strsearch.c:19,bne

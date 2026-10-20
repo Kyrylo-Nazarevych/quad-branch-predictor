@@ -1,0 +1,4 @@
+pc,count,taken,taken_rate,transition_rate,function,line,mnemonic
+80000164,3000,1513,0.5043,0.5088,main,pattern_correlated.c:16,bne
+80000144,1513,1,0.0007,0.0007,main,pattern_correlated.c:14,beq
+80000174,1487,1487,1.0,0.0,main,pattern_correlated.c:14,bne

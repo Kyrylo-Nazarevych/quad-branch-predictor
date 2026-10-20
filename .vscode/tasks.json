@@ -1,0 +1,145 @@
+{
+  // FPGA hardware-in-the-loop: Terminal > Run Task (or Ctrl+Shift+B for build + program).
+  // Everything calls fpga/fpga.ps1 (Vivado 2024.2 batch) or the Python in fpga/.venv; see fpga/README.md.
+  "version": "2.0.0",
+  "options": {
+    "env": { "PYTHONIOENCODING": "utf-8" }
+  },
+  "tasks": [
+    {
+      "label": "FPGA: simulate all traces (both RAM builds)",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/fpga/fpga.ps1", "simall", "-Ram", "both"],
+      "problemMatcher": [],
+      "group": "test"
+    },
+    {
+      "label": "FPGA: simulate one trace",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/fpga/fpga.ps1", "sim",
+               "-Trace", "${workspaceFolder}/${input:trace}", "-Ram", "${input:ram}"],
+      "problemMatcher": [],
+      "group": "test"
+    },
+    {
+      "label": "FPGA: simulate the whole board design (MMCM, 1 Mbaud, reference trace)",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/fpga/fpga.ps1", "sim",
+               "-Trace", "${workspaceFolder}/verification/traces/ref704_committed_log", "-Ram", "${input:ram}", "-Top"],
+      "problemMatcher": [],
+      "group": "test"
+    },
+    {
+      "label": "FPGA: build bitstream",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/fpga/fpga.ps1", "build", "-Ram", "${input:ram}"],
+      "problemMatcher": [],
+      "group": "build"
+    },
+    {
+      "label": "FPGA: program the board",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/fpga/fpga.ps1", "program", "-Ram", "${input:ram}"],
+      "problemMatcher": []
+    },
+    {
+      "label": "FPGA: write bitstream to the flash (boots at power-on, JP1 on QSPI)",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/fpga/fpga.ps1", "flash", "-Ram", "${input:ram}"],
+      "problemMatcher": []
+    },
+    {
+      "label": "FPGA: build and program (latch RAM)",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
+               "& '${workspaceFolder}/fpga/fpga.ps1' build -Ram latch; if ($?) { & '${workspaceFolder}/fpga/fpga.ps1' program -Ram latch }"],
+      "problemMatcher": [],
+      "group": { "kind": "build", "isDefault": true }
+    },
+    {
+      "label": "Board: ping",
+      "type": "process",
+      "command": "${workspaceFolder}/fpga/.venv/Scripts/python.exe",
+      "args": ["-I", "${workspaceFolder}/fpga/host/bphost.py", "ping"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Board: replay every trace and compare with the models",
+      "type": "process",
+      "command": "${workspaceFolder}/fpga/.venv/Scripts/python.exe",
+      "args": ["-I", "${workspaceFolder}/fpga/host/bphost.py", "runall"],
+      "problemMatcher": [],
+      "group": "test"
+    },
+    {
+      "label": "Dashboard: board",
+      "detail": "Live dashboard on http://localhost:8765 (Ctrl+click the link: opens in VS Code's Simple Browser)",
+      "type": "process",
+      "command": "${workspaceFolder}/fpga/.venv/Scripts/python.exe",
+      "args": ["-I", "${workspaceFolder}/fpga/host/bpdash.py", "--http", "8765"],
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "bpdash", "pattern": { "regexp": "^__never__$" },
+        "background": { "activeBegins": true, "beginsPattern": "^.", "endsPattern": "dashboard on http" }
+      }
+    },
+    {
+      "label": "Dashboard: mock board (no hardware)",
+      "type": "process",
+      "command": "${workspaceFolder}/fpga/.venv/Scripts/python.exe",
+      "args": ["-I", "${workspaceFolder}/fpga/host/bpdash.py", "--mock", "--http", "8765"],
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "bpdash", "pattern": { "regexp": "^__never__$" },
+        "background": { "activeBegins": true, "beginsPattern": "^.", "endsPattern": "dashboard on http" }
+      }
+    },
+    {
+      "label": "Streamlit app (FPGA board source)",
+      "detail": "Streamlit app on http://localhost:8501; close the dashboard first, only one program can hold the COM port",
+      "type": "process",
+      "command": "${workspaceFolder}/fpga/.venv/Scripts/python.exe",
+      "args": ["-m", "streamlit", "run", "app/app.py", "--server.port", "8501", "--server.headless", "true"],
+      "options": { "cwd": "${workspaceFolder}/tools" },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "streamlit", "pattern": { "regexp": "^__never__$" },
+        "background": { "activeBegins": true, "beginsPattern": "^.", "endsPattern": "Local URL|You can now view" }
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "ram", "type": "pickString", "description": "RAM build", "default": "latch",
+      "options": [
+        { "label": "latch: the chip's latch RAM, as taped out", "value": "latch" },
+        { "label": "ff: FPGA-only flip-flop drop-in (cross-check)", "value": "ff" }
+      ]
+    },
+    {
+      "id": "trace", "type": "pickString", "description": "Trace folder", "default": "verification/traces/ref704_committed_log",
+      "options": [
+        "verification/traces/ref704_committed_log",
+        "verification/traces/sort_and_search_O1",
+        "verification/traces/pattern_alternating_O0",
+        "verification/traces/pattern_loop4_O0",
+        "verification/traces/pattern_xor_O0",
+        "tools/precomputed/sort_and_search_O0",
+        "tools/precomputed/sort_and_search_O2",
+        "tools/precomputed/pattern_alternating_O1",
+        "tools/precomputed/pattern_alternating_O2",
+        "tools/precomputed/pattern_loop4_O1",
+        "tools/precomputed/pattern_loop4_O2",
+        "tools/precomputed/pattern_xor_O1",
+        "tools/precomputed/pattern_xor_O2"
+      ]
+    }
+  ]
+}

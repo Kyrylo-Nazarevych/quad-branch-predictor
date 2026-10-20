@@ -1,0 +1,778 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Branch Predictor HIL</title>
+<style>
+/* Colours of the four predictors: Windows Task Manager's performance graphs
+   (CPU blue, memory purple, disk green, network brown), with its outlined, gridded, lightly filled charts. */
+:root {
+  --bg: #f3f3f3; --panel: #ffffff; --ink: #1b1b1b; --muted: #5f6368; --rule: #e0e0e0; --soft: #f1f4f7;
+  --next: #fff4c2; --next-rule: #d9a400; --ok: #107c10; --bad: #c42b1c; --bp: #c42b1c; --accent: #0067c0;
+  --perceptron: #117dbb; --bimodal: #8b12ae; --gshare: #4da60c; --tournament: #a74f01;
+  --mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #1c1c1c; --panel: #272727; --ink: #f0f0f0; --muted: #a8a8a8; --rule: #3a3a3a; --soft: #303030;
+          --next: #403714; --ok: #6ccb5f; --bad: #ff99a4; --bp: #ff99a4; --accent: #4cc2ff;
+          --perceptron: #3da5e8; --bimodal: #c36ee0; --gshare: #7ac943; --tournament: #e08a3c; }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+/* minmax(0, 1fr): the page is never wider than the window, whatever long text a row holds (without it a long
+   description made the page 4,600 px wide, and the browser shifted the view sideways when zooming) */
+body { margin: 0; background: var(--bg); color: var(--ink); font: 13px/1.4 var(--sans); overflow: hidden;
+       display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto minmax(0, 1fr); }
+body > * { min-width: 0; }
+header, .bar-row { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 6px 12px;
+                   background: var(--panel); border-bottom: 1px solid var(--rule); }
+h1 { font-size: 15px; margin: 0 6px 0 0; font-weight: 600; }
+.spacer { flex: 1; }
+.pill { font: 12px var(--mono); padding: 2px 8px; border-radius: 99px; background: var(--soft); color: var(--muted); }
+.pill.on { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
+.pill.mock { background: color-mix(in srgb, var(--tournament) 18%, transparent); color: var(--ink); }
+button, select { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--rule);
+                 border-radius: 4px; padding: 3px 9px; cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--muted); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button:disabled { opacity: .4; cursor: default; }
+.group { display: flex; gap: 4px; align-items: center; }
+label { color: var(--muted); font-size: 12px; }
+.seg button.on { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+select:disabled { opacity: .45; }
+.info { flex-wrap: nowrap; padding-top: 3px; padding-bottom: 3px; font-size: 12px; }
+#desc { flex: 1 1 0; min-width: 0; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#speedLabel { font: 12px var(--mono); min-width: 7em; display: inline-block; }
+#status { flex: 0 1 auto; max-width: 45%; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#status.err { color: var(--bad); }
+.progress { flex: 1 1 180px; min-width: 120px; height: 10px; background: var(--soft); border: 1px solid var(--rule);
+            border-radius: 2px; cursor: pointer; position: relative; }
+.progress div { height: 100%; width: 0; background: var(--accent); }
+/* views */
+.view { min-height: 0; display: grid; gap: 8px; padding: 8px; }
+.view[hidden] { display: none; }
+#debug { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+.col { min-height: 0; display: grid; gap: 8px; }
+#debug .left { grid-template-rows: minmax(0, 1fr) minmax(0, 0.42fr); }
+#debug .right { grid-template-rows: auto auto minmax(0, 1fr); }
+#stats { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); }
+.panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; min-height: 0; display: flex;
+         flex-direction: column; overflow: hidden; }
+.panel h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0;
+            padding: 5px 10px; border-bottom: 1px solid var(--rule); font-weight: 600; display: flex;
+            justify-content: space-between; gap: 8px; align-items: center; flex: none; }
+.body { flex: 1; min-height: 0; overflow: auto; }
+.empty { padding: 14px 10px; color: var(--muted); }
+/* source */
+#src { font: 12px/1.5 var(--mono); }
+#src table { border-collapse: collapse; width: 100%; }
+#src td { padding: 0 8px; white-space: pre; vertical-align: top; }
+#src td.g { width: 16px; padding: 0 0 0 5px; cursor: pointer; color: var(--bp); text-align: center; }
+#src td.n { width: 3em; text-align: right; color: var(--muted); cursor: pointer; user-select: none; }
+#src td.m { width: 11em; color: var(--muted); font-size: 11px; white-space: nowrap; }
+#src tr.br td.c { background: var(--soft); }
+#src tr.next td { background: var(--next) !important; }
+#src tr.next td.g::before { content: "▶"; color: var(--next-rule); }
+#src tr.bp td.g::after { content: "●"; }
+.mbar { display: inline-block; height: 7px; vertical-align: middle; margin-right: 5px; }
+/* branch card */
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 1px 12px; padding: 6px 10px; font-size: 12px; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pchips { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; padding: 0 10px 8px; }
+.pchip { border: 1px solid var(--rule); border-left: 4px solid var(--c); border-radius: 4px; padding: 3px 7px; }
+.pchip .nm { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pchip .vv { font: 600 14px var(--mono); }
+.pchip.ok .vv { color: var(--ok); } .pchip.bad .vv { color: var(--bad); }
+.pchip .md { font-size: 10px; color: var(--muted); }
+.pchip.diff { outline: 2px solid var(--bad); }
+/* tables */
+table.t { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.t th { text-align: left; font-weight: 500; color: var(--muted); font-size: 11px; padding: 4px 8px; position: sticky;
+             top: 0; background: var(--panel); border-bottom: 1px solid var(--rule); }
+table.t td { padding: 3px 8px; border-top: 1px solid var(--rule); font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.t th.num, table.t td.num { text-align: right; font-family: var(--mono); }
+.dot { display: inline-block; width: 9px; height: 9px; margin-right: 6px; vertical-align: -1px; }
+.accbar { height: 6px; background: var(--soft); min-width: 50px; }
+.accbar div { height: 100%; }
+#mismatch, #mismatch2 { display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; border-top: 1px solid var(--rule); font-size: 12px; }
+.big { font: 600 22px var(--mono); }
+.ok .big { color: var(--ok); } .bad .big { color: var(--bad); }
+/* charts (Task Manager style) */
+/* the SVG is absolutely positioned, so a chart never pushes the layout when the window shrinks or zooms;
+   it is redrawn at the box's new size (ResizeObserver) */
+.chart { flex: 1 1 0; min-height: 40px; min-width: 0; position: relative; overflow: hidden; }
+.chart svg { position: absolute; left: 8px; top: 4px; display: block; }
+.tm-lab { font: 10px var(--sans); fill: var(--muted); }
+.legend { display: flex; gap: 12px; flex-wrap: wrap; padding: 2px 10px 5px; font-size: 11px; color: var(--muted); flex: none; }
+.cyc { display: flex; gap: 14px; padding: 4px 10px 6px; font-size: 12px; flex-wrap: wrap; flex: none; }
+.cyc b { font-family: var(--mono); font-weight: 600; }
+.multiples { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+             grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; padding: 6px 8px; }
+.mult { min-height: 0; min-width: 0; display: flex; flex-direction: column; }
+.mult .cap { font-size: 11px; display: flex; justify-content: space-between; color: var(--muted); }
+.mult .cap b { color: var(--ink); font-weight: 600; }
+/* accuracy cards in the stats view */
+.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px; flex: none; }
+.card { border: 1px solid var(--rule); border-top: 3px solid var(--c); padding: 5px 8px; }
+.card .nm { font-size: 11px; color: var(--muted); }
+.card .pct { font: 600 24px var(--mono); }
+.card .sub { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+/* log */
+#log { font: 11.5px var(--mono); }
+#log td.tx { color: var(--perceptron); } #log td.rx { color: var(--gshare); }
+#log tr.bad td { color: var(--bad); }
+/* agreement */
+.agree td.num.hi { font-weight: 600; }
+/* compiler view */
+#compiler { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); }
+.cright { grid-template-rows: minmax(0, 1.2fr) auto minmax(0, 1fr); }
+.cbar { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 6px 10px; flex: none; }
+.cbar input[type=text], #cName { font: 13px var(--mono); color: var(--ink); background: var(--panel); border: 1px solid var(--rule);
+                                  border-radius: 4px; padding: 3px 7px; width: 220px; }
+.hint { color: var(--muted); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0; }
+.editor { flex: 1; min-height: 0; display: flex; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+          font: 12.5px/1.5 var(--mono); }
+#cGutter { margin: 0; padding: 6px 8px 6px 4px; min-width: 3.2em; text-align: right; color: var(--muted); background: var(--soft);
+           overflow: hidden; user-select: none; font: inherit; white-space: pre; }
+#cCode { flex: 1; min-width: 0; border: 0; outline: 0; resize: none; padding: 6px 10px; font: inherit; color: var(--ink);
+         background: var(--panel); white-space: pre; overflow: auto; tab-size: 4; }
+#cLog { font: 12px/1.45 var(--mono); padding: 6px 10px; }
+#cLog div { white-space: pre-wrap; }
+#cLog .error { color: var(--bad); } #cLog .ok { color: var(--ok); } #cLog .info { color: var(--muted); }
+#cState.running { color: var(--accent); } #cState.ok { color: var(--ok); } #cState.error { color: var(--bad); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Branch predictor on the FPGA</h1>
+  <span id="conn" class="pill">not connected</span>
+  <div class="group seg" id="connSeg"><button data-mock="0">Board</button><button data-mock="1">Mock</button></div>
+  <div class="group"><label for="progSel">Program</label><select id="progSel" style="min-width:190px"></select></div>
+  <div class="group"><label for="optSel">GCC</label><select id="optSel"></select></div>
+  <div class="group"><label for="jumpSel">Jump to</label>
+    <select id="jumpSel" style="min-width:170px" title="Jump to a section (function) of this program; going back resets the chip and replays"></select></div>
+  <span class="spacer"></span>
+  <div class="group seg" id="viewSeg"><button data-view="debug" class="on">Debugger</button><button data-view="stats">Statistics</button><button data-view="compiler">Compiler</button></div>
+  <button id="reset" title="Reset the chip (clears its tables) and start the trace again">Reset chip</button>
+</header>
+<div class="bar-row">
+  <div class="group">
+    <button id="back100" title="Back 100 branches (the chip is reset and replayed)">−100</button>
+    <button id="back10" title="Back 10 branches">−10</button>
+    <button id="back1" title="Back one branch (Shift+F10)">◀ Back</button>
+    <button id="step1" title="Run one branch (F10)">Step ▶</button>
+    <button id="step10">+10</button>
+    <button id="step100">+100</button>
+    <button id="run" class="primary" title="Run (F5)">Run</button>
+    <button id="pause" title="Pause (F6)">Pause</button>
+  </div>
+  <div class="group">
+    <label for="speed">Speed</label>
+    <input id="speed" type="range" min="0" max="14" step="1" value="4" style="width:110px">
+    <span id="speedLabel"></span>
+  </div>
+  <div class="group">
+    <label><input type="checkbox" id="bpMismatch" checked> stop if board ≠ models</label>
+    <label for="bpMiss">· stop when</label>
+    <select id="bpMiss"><option value="">no predictor</option></select>
+    <label>mispredicts</label>
+  </div>
+  <div class="progress" id="progress" title="Click to jump to that branch, backwards or forwards"><div id="prog"></div></div>
+  <span id="count" class="pill">0 / 0</span>
+</div>
+<div class="bar-row info">
+  <span id="status"></span>
+  <span id="desc"></span>
+</div>
+
+<main class="view" id="debug">
+  <div class="col left">
+    <section class="panel">
+      <h2><span id="srcTitle">Source</span><span>click a line number for a breakpoint · bars:
+        <select id="lineWho" style="font-size:11px;padding:0 3px"></select> misses</span></h2>
+      <div class="body" id="src"><div class="empty">No trace loaded.</div></div>
+    </section>
+    <section class="panel">
+      <h2><span>UART bytes (follows the newest while scrolled to the bottom)</span><span id="bytes"></span></h2>
+      <div class="body" id="log"><table class="t"><thead><tr><th>time</th><th>what</th><th>branch</th><th>sent</th>
+        <th>received</th><th>meaning</th></tr></thead><tbody id="logBody"></tbody></table></div>
+    </section>
+  </div>
+  <div class="col right">
+    <section class="panel">
+      <h2><span>Last branch</span><span id="nextInfo"></span></h2>
+      <dl class="kv" id="branch"><dt>–</dt><dd>nothing run yet</dd></dl>
+      <div class="pchips" id="pchips"></div>
+    </section>
+    <section class="panel">
+      <h2><span>Accuracy so far</span><span id="rate"></span></h2>
+      <table class="t"><thead><tr><th>Predictor</th><th></th><th class="num">Correct</th><th class="num">MPKI</th>
+        <th class="num">≠ model</th></tr></thead><tbody id="accBody"></tbody></table>
+      <div id="mismatch" class="ok"><span class="big" id="mmBig">0</span><span id="mmText">differences between the board and the Python models</span></div>
+    </section>
+    <section class="panel">
+      <h2><span id="chartTitle">Rolling accuracy, last 200 branches</span>
+        <span class="seg group" id="chartSeg"><button data-k="roll" class="on" style="font-size:11px;padding:0 6px">rolling</button><button data-k="cum" style="font-size:11px;padding:0 6px">cumulative</button></span></h2>
+      <div class="chart" id="chart"></div>
+      <div class="legend legendBox"></div>
+      <div class="cyc" id="cyc"></div>
+    </section>
+  </div>
+</main>
+
+<main class="view" id="stats" hidden>
+  <section class="panel">
+    <h2><span>Accuracy</span><span id="sRate"></span></h2>
+    <div class="cards" id="cards"></div>
+    <div class="body"><table class="t" id="sAccTable"></table></div>
+    <div id="mismatch2" class="ok"><span class="big" id="mmBig2">0</span><span id="mmText2"></span></div>
+  </section>
+  <section class="panel" style="grid-column: span 2">
+    <h2><span>Rolling accuracy per predictor, last 200 branches</span><span id="multInfo"></span></h2>
+    <div class="multiples" id="multiples"></div>
+  </section>
+  <section class="panel">
+    <h2><span>Cumulative accuracy</span><span id="cumInfo"></span></h2>
+    <div class="chart" id="cumChart"></div>
+    <div class="legend legendBox"></div>
+    <div class="cyc" id="sCyc"></div>
+  </section>
+  <section class="panel">
+    <h2><span>Branches in the code, by executions</span>
+      <span>sort by misses of <select id="tblWho" style="font-size:11px;padding:0 3px"><option value="">(executions)</option></select></span></h2>
+    <div class="body"><table class="t" id="staticTable"></table></div>
+  </section>
+  <section class="panel">
+    <h2><span>Where predictors agree</span></h2>
+    <div class="body"><table class="t agree" id="agreeTable"></table>
+      <div class="empty" id="agreeNote" style="padding:8px 10px"></div></div>
+  </section>
+</main>
+
+<main class="view" id="compiler" hidden>
+  <section class="panel">
+    <h2><span>C source</span>
+      <span class="group">
+        <button id="cNew" title="Start from the template">New</button>
+        <button id="cCopy" title="Copy the program open in the debugger into the editor">Copy current program</button>
+        <button id="cOpen" title="Load a .c file from disk">Open .c file…</button>
+        <input type="file" id="cFile" accept=".c,text/x-c" hidden>
+      </span></h2>
+    <div class="cbar">
+      <label for="cName">Name</label><input id="cName" value="my_program" spellcheck="false">
+      <span class="hint">letters, digits, _ · start it with <code>pattern_</code> to open at -O0</span>
+    </div>
+    <div class="editor"><pre id="cGutter"></pre><textarea id="cCode" spellcheck="false" wrap="off"></textarea></div>
+    <div class="cbar">
+      <label>GCC</label>
+      <label><input type="checkbox" class="cOpt" value="O0" checked> -O0</label>
+      <label><input type="checkbox" class="cOpt" value="O1" checked> -O1</label>
+      <label><input type="checkbox" class="cOpt" value="O2" checked> -O2</label>
+      <label title="Leave out branches in the start-up code and the tiny C library"><input type="checkbox" id="cUser" checked> only branches in this file</label>
+      <span class="spacer"></span>
+      <button id="cCompile" class="primary" title="Ctrl+Enter">Compile</button>
+    </div>
+    <div class="cbar hint" id="cRules">Bare metal: no <code>printf</code>, no <code>malloc</code>, no files. Use static arrays and
+      <code>volatile</code> variables, return a value from <code>main</code>, stay under 2 million instructions.</div>
+  </section>
+  <div class="col cright">
+    <section class="panel">
+      <h2><span>Output</span><span id="cState"></span></h2>
+      <div class="body" id="cLog"><div class="empty">Compile a program to see GCC's and Spike's messages here.</div></div>
+    </section>
+    <section class="panel">
+      <h2><span>Traces made</span></h2>
+      <div class="body"><table class="t" id="cResults"></table></div>
+    </section>
+    <section class="panel">
+      <h2><span>Your programs</span><span class="hint">also the ones saved by the Streamlit app</span></h2>
+      <div class="body"><table class="t" id="cMine"></table></div>
+    </section>
+  </div>
+</main>
+
+<script>
+const PRED = ["perceptron", "bimodal", "gshare", "tournament"];
+const LABEL = {perceptron: "Perceptron (704)", bimodal: "Bimodal", gshare: "gshare", tournament: "Tournament"};
+const SHORT = {perceptron: "Perc.", bimodal: "Bim.", gshare: "gsh.", tournament: "Tour."};
+const SPEEDS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 0];
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+let S = null, src = null, srcKey = null, chartKind = "roll", lineWho = "perceptron", view = "debug", tblWho = "";
+let loadingSrc = false;
+
+const post = c => fetch("/api/cmd", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(c)});
+const fmt = (x, d = 2) => x == null ? "–" : Number(x).toFixed(d);
+const pct = x => x == null ? "–" : (100 * x).toFixed(1) + "%";
+const speedText = v => v === 0 ? "max (link)" : `${v.toLocaleString()} br/s`;
+
+for (const k of PRED) {
+  $("bpMiss").add(new Option(LABEL[k], k));
+  $("lineWho").add(new Option(LABEL[k], k));
+  $("tblWho").add(new Option(LABEL[k], k));
+}
+document.querySelectorAll(".legendBox").forEach(el => el.innerHTML = PRED.map(k =>
+  `<span><span class="dot" style="background:var(--${k})"></span>${LABEL[k]}</span>`).join(""));
+
+// ---- controls
+const busy = () => S && S.mode === "running";
+$("step1").onclick = () => post({cmd: "step", n: 1});
+$("step10").onclick = () => post({cmd: "step", n: 10});
+$("step100").onclick = () => post({cmd: "step", n: 100});
+$("back1").onclick = () => post({cmd: "back", n: 1});
+$("back10").onclick = () => post({cmd: "back", n: 10});
+$("back100").onclick = () => post({cmd: "back", n: 100});
+$("run").onclick = () => post({cmd: "run"});
+$("pause").onclick = () => post({cmd: "pause"});
+$("reset").onclick = () => post({cmd: "reset"});
+$("progress").onclick = e => {
+  if (!S || !S.trace || busy()) return;
+  const r = $("progress").getBoundingClientRect();
+  post({cmd: "goto", target: Math.round(S.trace.n * (e.clientX - r.left) / r.width)});
+};
+$("speed").oninput = e => { const v = SPEEDS[+e.target.value]; $("speedLabel").textContent = speedText(v); post({cmd: "speed", value: v}); };
+$("bpMismatch").onchange = e => post({cmd: "breaks", mismatch: e.target.checked});
+$("bpMiss").onchange = e => post({cmd: "breaks", mispredict: e.target.value || null});
+$("lineWho").onchange = e => { lineWho = e.target.value; renderLines(); };
+$("tblWho").onchange = e => { tblWho = e.target.value; renderStatic(); };
+for (const b of document.querySelectorAll("#connSeg button")) b.onclick = () => post({cmd: "connect", mock: b.dataset.mock === "1"});
+for (const b of document.querySelectorAll("#viewSeg button")) b.onclick = () => {
+  view = b.dataset.view;
+  document.querySelectorAll("#viewSeg button").forEach(x => x.classList.toggle("on", x === b));
+  for (const v of ["debug", "stats", "compiler"]) $(v).hidden = view !== v;
+  if (view === "compiler") loadMine();
+  if (S) render();
+};
+for (const b of document.querySelectorAll("#chartSeg button")) b.onclick = () => {
+  chartKind = b.dataset.k;
+  document.querySelectorAll("#chartSeg button").forEach(x => x.classList.toggle("on", x === b));
+  $("chartTitle").textContent = chartKind === "roll" ? "Rolling accuracy, last 200 branches" : "Cumulative accuracy";
+  renderChart();
+};
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT") return;
+  if (e.key === "F10") { e.preventDefault(); post(e.shiftKey ? {cmd: "back", n: 1} : {cmd: "step", n: 1}); }
+  if (e.key === "F5") { e.preventDefault(); post({cmd: busy() ? "pause" : "run"}); }
+  if (e.key === "F6") { e.preventDefault(); post({cmd: "pause"}); }
+});
+// redraw the charts whenever their boxes change size (window resize, browser zoom, view switch)
+let redrawQueued = false;
+const redraw = () => { if (redrawQueued) return; redrawQueued = true;
+  requestAnimationFrame(() => { redrawQueued = false; if (!S || !S.trace) return;
+    if (view === "debug") renderChart(); else renderStats(); }); };
+new ResizeObserver(redraw).observe(document.body);
+document.querySelectorAll(".chart").forEach(el => new ResizeObserver(redraw).observe(el));
+
+// ---- program list (pattern demos and workloads) and the GCC optimisation level
+let PROGS = {}, curProg = null, curOpt = null;
+const nice = p => p.replace(/^pattern_/, "").replace(/_/g, " ");
+const defaultOpt = name => name.startsWith("pattern_") ? "O0" : "O1";      // as the Streamlit app
+function loadPrograms() {
+  return fetch("/api/traces").then(r => r.json()).then(list => {
+    PROGS = {};
+    for (const t of list) {
+      const p = PROGS[t.program] || (PROGS[t.program] = {opts: {}, desc: t.desc, mine: t.mine});
+      p.opts[t.opt || "-"] = t.key;
+    }
+    const names = Object.keys(PROGS).sort();
+    const group = (label, items) => items.length ? `<optgroup label="${label}">` +
+      items.map(n => `<option value="${n}">${nice(n)}</option>`).join("") + "</optgroup>" : "";
+    $("progSel").innerHTML =
+      group("Your programs (Compiler view)", names.filter(n => PROGS[n].mine)) +
+      group("Pattern demos: one behaviour each", names.filter(n => !PROGS[n].mine && n.startsWith("pattern_"))) +
+      group("Workloads", names.filter(n => !PROGS[n].mine && !n.startsWith("pattern_")));
+    curProg = null;
+    if (S) render();
+  });
+}
+loadPrograms();
+function pickProgram(name, opt) {
+  const opts = PROGS[name].opts;
+  const want = opts[opt] ? opt : opts[defaultOpt(name)] ? defaultOpt(name) : Object.keys(opts)[0];
+  post({cmd: "load", trace: opts[want]});
+}
+$("progSel").onchange = e => pickProgram(e.target.value, defaultOpt(e.target.value));   // patterns show at -O0
+$("optSel").onchange = e => curProg && pickProgram(curProg, e.target.value);
+function renderPicker() {
+  const leaf = S.trace.key.split("/").pop();
+  for (const [name, p] of Object.entries(PROGS))
+    for (const [opt, key] of Object.entries(p.opts))
+      if (key.split("/").pop() === leaf) { curProg = name; curOpt = opt; }
+  if (!curProg) return;
+  if (document.activeElement !== $("progSel")) $("progSel").value = curProg;
+  const opts = Object.keys(PROGS[curProg].opts).sort();
+  const html = opts.map(o => `<option value="${o}">${o === "-" ? "(fixed)" : "-" + o}</option>`).join("");
+  if ($("optSel").dataset.html !== html) { $("optSel").innerHTML = html; $("optSel").dataset.html = html; }
+  $("optSel").value = curOpt; $("optSel").disabled = opts.length < 2;
+  const d = PROGS[curProg].desc || "";
+  $("desc").textContent = d; $("desc").title = d;
+}
+
+// ---- Compiler view: write or load C, compile it (in WSL) at the chosen levels, and it joins the Program list
+const TEMPLATE = `/* My program: a loop with a branch that is taken every third time.
+   Bare metal: no printf, no malloc. Use static arrays and volatile variables; return from main. */
+volatile int sink;
+
+int main(void) {
+    for (int i = 0; i < 3000; i++) {
+        if (i % 3 == 0) sink = i;   /* T, N, N, T, N, N, ... */
+        else            sink = -i;
+    }
+    return 0;
+}
+`;
+const store = {get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } },
+               set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} }};
+function gutter() {
+  const n = $("cCode").value.split("\n").length;
+  $("cGutter").textContent = Array.from({length: n}, (_, i) => i + 1).join("\n") + "\n";
+  $("cGutter").scrollTop = $("cCode").scrollTop;
+}
+function loadEditor(name, code) {
+  $("cName").value = name; $("cCode").value = code; gutter(); saveDraft();
+}
+function saveDraft() { store.set("bp.draft.name", $("cName").value); store.set("bp.draft.code", $("cCode").value); }
+loadEditor(store.get("bp.draft.name") || "my_program", store.get("bp.draft.code") || TEMPLATE);
+$("cCode").addEventListener("input", () => { gutter(); saveDraft(); });
+$("cName").addEventListener("input", saveDraft);
+$("cCode").addEventListener("scroll", () => { $("cGutter").scrollTop = $("cCode").scrollTop; });
+$("cCode").addEventListener("keydown", e => {
+  if (e.key === "Tab") {                       // indent instead of leaving the editor
+    e.preventDefault();
+    const t = e.target, a = t.selectionStart;
+    t.setRangeText("    ", a, t.selectionEnd, "end"); gutter(); saveDraft();
+  }
+  if (e.key === "Enter" && e.ctrlKey) { e.preventDefault(); compile(); }
+});
+$("cNew").onclick = () => loadEditor("my_program", TEMPLATE);
+$("cCopy").onclick = () => {
+  if (!src || !src.lines || !src.lines.length) return alert("The program in the debugger has no C source.");
+  loadEditor((curProg || "program").replace(/^pattern_/, "") + "_copy", src.lines.join("\n") + "\n");
+};
+$("cOpen").onclick = () => $("cFile").click();
+$("cFile").onchange = async e => {
+  const f = e.target.files[0];
+  if (f) loadEditor(f.name.replace(/\.c$/i, "").replace(/[^A-Za-z0-9_]/g, "_"), await f.text());
+  e.target.value = "";
+};
+$("cCompile").onclick = () => compile();
+async function compile() {
+  const opts = [...document.querySelectorAll(".cOpt:checked")].map(x => x.value);
+  if (!opts.length) return alert("Pick at least one GCC level.");
+  const r = await fetch("/api/compile", {method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({name: $("cName").value, code: $("cCode").value, opts, user_only: $("cUser").checked})});
+  const j = await r.json();
+  if (!j.ok) alert(j.why || "could not start the compile");
+}
+async function loadMine() {
+  const list = await (await fetch("/api/myprograms")).json();
+  $("cMine").innerHTML = list.length ? `<thead><tr><th>Program</th><th>Traces</th><th></th></tr></thead>` +
+    list.map(p => `<tr><td>${p.name}</td><td>${p.opts.length ? p.opts.map(o => "-" + o).join(" ") : "not compiled here"}</td>` +
+      `<td><button data-edit="${p.name}">Edit</button> ` +
+      (p.opts.length ? `<button data-open="${p.name}">Open in debugger</button>` : "") + `</td></tr>`).join("")
+    : `<tr><td class="hint" style="padding:10px">None yet. Compile one on the left; programs saved by the Streamlit app appear here too.</td></tr>`;
+  $("cMine").querySelectorAll("[data-edit]").forEach(b => b.onclick = async () => {
+    const j = await (await fetch("/api/myprogram?name=" + b.dataset.edit)).json();
+    if (j.code) loadEditor(j.name, j.code);
+  });
+  $("cMine").querySelectorAll("[data-open]").forEach(b => b.onclick = () => openProgram(b.dataset.open));
+}
+function openProgram(name, key) {
+  if (!key) { const p = PROGS[name]; if (!p) return; key = p.opts[defaultOpt(name)] || Object.values(p.opts)[0]; }
+  post({cmd: "load", trace: key});
+  document.querySelector('#viewSeg button[data-view="debug"]').click();
+}
+let lastCompileState = null;
+function renderCompiler() {
+  const c = S.compile || {}, tc = S.toolchain || {};
+  const running = c.state === "running";
+  $("cCompile").disabled = running || !tc.ok;
+  $("cCompile").textContent = running ? "Compiling…" : "Compile";
+  $("cState").className = c.state || "";
+  $("cState").textContent = running ? `compiling ${c.name}…` : c.state === "ok" ? `${c.name}: done`
+    : c.state === "error" ? `${c.name}: failed` : (tc.ok ? "compiler ready" : tc.ok === false ? "no compiler" : "checking…");
+  $("cRules").title = tc.why || "";
+  if (tc.ok === false) $("cState").textContent = "no compiler: " + tc.why;
+  if (c.log && c.log.length) {
+    const box = $("cLog");
+    const html = c.log.map(l => `<div class="${l.kind}">${l.text.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</div>`).join("");
+    if (box.dataset.n !== String(c.log.length)) { box.innerHTML = html; box.dataset.n = c.log.length; box.scrollTop = box.scrollHeight; }
+  }
+  $("cResults").innerHTML = (c.results && c.results.length) ?
+    `<thead><tr><th>GCC</th><th class="num">Branches</th><th class="num">In the code</th><th class="num">Instructions</th><th class="num">main()</th><th></th></tr></thead>` +
+    c.results.map(r => `<tr><td>-${r.opt}</td><td class="num">${r.branches.toLocaleString()}</td><td class="num">${r.static}</td>` +
+      `<td class="num">${(r.instructions || 0).toLocaleString()}</td><td class="num">${r.result ?? ""}</td>` +
+      `<td><button data-key="${r.key}">Open</button></td></tr>`).join("")
+    : `<tr><td class="hint" style="padding:10px">One row per GCC level once it compiles.</td></tr>`;
+  $("cResults").querySelectorAll("[data-key]").forEach(b => b.onclick = () => openProgram(null, b.dataset.key));
+  if (lastCompileState === "running" && c.state !== "running") { loadPrograms(); loadMine(); }
+  lastCompileState = c.state;
+}
+
+// ---- "Jump to": the sections (functions) of this program, in the order it reaches them
+$("jumpSel").onchange = e => {
+  const v = e.target.value;
+  e.target.value = "";
+  if (v !== "") post({cmd: "goto", target: +v});
+};
+function fillJumps() {
+  const secs = (src && src.sections) || [];
+  $("jumpSel").innerHTML = `<option value="">${secs.length ? "section…" : "(no sections)"}</option>` +
+    `<option value="0">start of the program (#0)</option>` +
+    secs.map(s => `<option value="${s.first}">${s.function}()  · line ${s.line} · from #${s.first.toLocaleString()} · ${s.count.toLocaleString()} branches</option>`).join("");
+  $("jumpSel").disabled = !secs.length;
+}
+
+// ---- Task Manager style chart: outlined box, light grid, lines (and a light fill when there is one series)
+function tmChart(box, series, opts = {}) {
+  const w = box.clientWidth - 16, h = box.clientHeight - 6;        // exactly the box: never larger than it
+  if (w < 30 || h < 24) { box.innerHTML = ""; return; }
+  if (!series.length || !S || !S.trace) { box.innerHTML = '<div class="empty">Run some branches to draw the curve.</div>'; return; }
+  const lo = opts.lo ?? 40, n = S.trace.n, top = 13, bot = h - 13, left = 1, right = w - 1;
+  const x = i => left + (right - left) * i / n, y = v => top + (bot - top) * (100 - Math.max(lo, Math.min(100, v))) / (100 - lo);
+  const main = opts.color || css("--muted");
+  let g = `<rect x="${left}" y="${top}" width="${right - left}" height="${bot - top}" fill="none" stroke="${main}" stroke-width="1"/>`;
+  const gridC = opts.color ? `color-mix(in srgb, ${opts.color} 22%, transparent)` : "var(--rule)";
+  for (let c = 1; c < 10; c++) g += `<line x1="${left + (right - left) * c / 10}" x2="${left + (right - left) * c / 10}" y1="${top}" y2="${bot}" stroke="${gridC}" stroke-width="1"/>`;
+  for (let r = 1; r < 6; r++) g += `<line x1="${left}" x2="${right}" y1="${top + (bot - top) * r / 6}" y2="${top + (bot - top) * r / 6}" stroke="${gridC}" stroke-width="1"/>`;
+  for (const s of series) {
+    const pts = s.pts.map(p => `${x(p[0]).toFixed(1)},${y(p[1]).toFixed(1)}`);
+    if (series.length === 1 && pts.length)
+      g += `<polygon points="${x(s.pts[0][0]).toFixed(1)},${bot} ${pts.join(" ")} ${x(s.pts[s.pts.length - 1][0]).toFixed(1)},${bot}" fill="${s.color}" fill-opacity="0.13"/>`;
+    g += `<polyline fill="none" stroke="${s.color}" stroke-width="1.4" points="${pts.join(" ")}"/>`;
+  }
+  g += `<text class="tm-lab" x="${left}" y="10">${opts.title || "% correct"}</text>` +
+       `<text class="tm-lab" x="${right}" y="10" text-anchor="end">100%</text>` +
+       `<text class="tm-lab" x="${left}" y="${h - 2}">${lo}% · branch 0</text>` +
+       `<text class="tm-lab" x="${right}" y="${h - 2}" text-anchor="end">${n.toLocaleString()}</text>`;
+  box.innerHTML = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${g}</svg>`;
+}
+const seriesOf = (j, kind) => (S.series || []).map(p => [p[0], p[(kind === "roll" ? 5 : 1) + j]]);
+
+// ---- source view
+async function loadSource() {
+  src = await (await fetch("/api/source")).json();
+  srcKey = src.key || S.trace.key;
+  fillJumps();
+  logRows = 0; lastSeq = 0; $("logBody").innerHTML = "";
+  const box = $("src");
+  if (!src.lines || !src.lines.length) {
+    box.innerHTML = `<div class="empty">This trace has no C source (only tb_input.hex). Branches still run; the line view is empty.</div>`;
+    $("srcTitle").textContent = "Source";
+    return;
+  }
+  $("srcTitle").textContent = src.name;
+  const br = new Set(src.branch_lines);
+  const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  box.innerHTML = "<table>" + src.lines.map((t, i) =>
+    `<tr id="L${i + 1}" class="${br.has(i + 1) ? "br" : ""}"><td class="g"></td><td class="n">${i + 1}</td>` +
+    `<td class="m"></td><td class="c">${esc(t) || " "}</td></tr>`).join("") + "</table>";
+  box.querySelectorAll("td.n, td.g").forEach(td => td.onclick = () => {
+    const ln = +td.parentElement.id.slice(1);
+    const cur = new Set(S.breaks.lines);
+    cur.has(ln) ? cur.delete(ln) : cur.add(ln);
+    post({cmd: "breaks", lines: [...cur]});
+  });
+  lastNext = null;
+}
+
+let lastNext = null;
+function renderLines() {
+  if (!src || !src.lines || !S) return;
+  const k = PRED.indexOf(lineWho);
+  let max = 1;
+  for (const v of Object.values(S.lines || {})) max = Math.max(max, v[1 + k]);
+  document.querySelectorAll("#src td.m").forEach(td => td.innerHTML = "");
+  for (const [ln, v] of Object.entries(S.lines || {})) {
+    const row = $("L" + ln);
+    if (!row) continue;
+    const w = 2 + 56 * v[1 + k] / max;
+    row.children[2].innerHTML = `<span class="mbar" style="width:${w.toFixed(0)}px;background:var(--${lineWho})"></span>${v[1 + k]}/${v[0]}`;
+  }
+  const bps = new Set(S.breaks.lines);
+  document.querySelectorAll("#src tr").forEach(tr => tr.classList.toggle("bp", bps.has(+tr.id.slice(1))));
+  const nl = S.next && S.next.line;
+  if (nl !== lastNext) {
+    document.querySelectorAll("#src tr.next").forEach(r => r.classList.remove("next"));
+    if (nl) {
+      const row = $("L" + nl);
+      if (row) { row.classList.add("next"); if (!busy() || S.speed && S.speed <= 20) row.scrollIntoView({block: "nearest"}); }
+    }
+    lastNext = nl;
+  } else if (nl && !busy()) {                    // paused: keep the next line visible (after a jump or a resize)
+    const row = $("L" + nl), box = $("src");
+    if (row) {
+      const a = row.getBoundingClientRect(), b = box.getBoundingClientRect();
+      if (a.top < b.top || a.bottom > b.bottom) row.scrollIntoView({block: "center"});
+    }
+  }
+}
+
+// ---- debugger view panels
+function renderBranch() {
+  const L = S.last, N = S.next;
+  $("nextInfo").textContent = N ? `next: #${N.i}${N.line ? `, line ${N.line}` : ""}` : (S.trace ? "end of trace" : "");
+  if (!L) { $("branch").innerHTML = "<dt>–</dt><dd>nothing run yet</dd>"; $("pchips").innerHTML = ""; return; }
+  const rows = [["branch", `#${L.i} of ${S.trace.n.toLocaleString()}`],
+    ["pc", L.pc ? `0x${L.pc}  (pc8 0x${L.pc8.toString(16).padStart(2, "0")})` : `pc8 0x${L.pc8.toString(16).padStart(2, "0")}`],
+    ["where", L.where ? `${L.where}  ${L.function}()  ${L.mnemonic}` : "–"],
+    ["outcome", L.taken ? "taken" : "not taken"],
+    ["clocks", `${L.board[4]}  (strobe to training_done${L.board[4] === 45 ? ", perceptron trained" : ""})`]];
+  $("branch").innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+  $("pchips").innerHTML = PRED.map((k, j) => {
+    const p = L.board[j], ok = p === L.taken, same = p === L.model[j];
+    return `<div class="pchip ${ok ? "ok" : "bad"} ${same ? "" : "diff"}" style="--c:var(--${k})">` +
+      `<div class="nm">${LABEL[k]}</div><div class="vv">${p ? "T" : "N"} ${ok ? "✓" : "✗"}</div>` +
+      `<div class="md">${same ? "model agrees" : "MODEL SAYS " + (L.model[j] ? "T" : "N")}</div></div>`;
+  }).join("");
+}
+
+function mismatchText(el, big, txt) {
+  const mm = S.mismatch_total;
+  el.className = mm ? "bad" : "ok";
+  big.textContent = mm.toLocaleString();
+  txt.textContent = mm ? `predictions differ from the Python models (first at branch ${S.first_mismatch})`
+                       : `differences between the board and the Python models (${S.i.toLocaleString()} branches × 4)`;
+}
+
+function renderAcc() {
+  $("accBody").innerHTML = PRED.map(k => {
+    const a = S.acc[k];
+    return `<tr><td><span class="dot" style="background:var(--${k})"></span>${LABEL[k]}</td>` +
+      `<td style="width:30%"><div class="accbar"><div style="width:${a || 0}%;background:var(--${k})"></div></div></td>` +
+      `<td class="num">${a == null ? "–" : fmt(a) + "%"}</td><td class="num">${fmt(S.mpki[k], 1)}</td>` +
+      `<td class="num">${S.mismatch[k]}</td></tr>`;
+  }).join("");
+  mismatchText($("mismatch"), $("mmBig"), $("mmText"));
+  $("cyc").innerHTML = cycText();
+}
+function cycText() {
+  const h = S.cycles.hist;
+  return `<span>clocks per branch: <b>${fmt(S.cycles.avg, 1)}</b> average</span>` +
+    Object.entries(h).map(([c, v]) => `<span><b>${c}</b> clocks × ${v.toLocaleString()}</span>`).join("") +
+    `<span style="color:var(--muted)">tables answer in 2 clocks</span>`;
+}
+
+function renderChart() {
+  if (!S || view !== "debug") return;
+  tmChart($("chart"), PRED.map((k, j) => ({color: css("--" + k), pts: seriesOf(j, chartKind)})).filter(s => s.pts.length),
+          {title: chartKind === "roll" ? "% correct, last 200 branches" : "% correct so far"});
+}
+
+// UART log, Wireshark style: oldest at the top, newest at the bottom. New rows are appended; the view follows them
+// only while it is scrolled to the bottom, so scrolling up to read stays put.
+let lastSeq = 0, logRows = 0;
+const LOG_MAX = 2000;
+function renderLog() {
+  $("bytes").textContent = `${S.tx_bytes.toLocaleString()} bytes sent, ${S.rx_bytes.toLocaleString()} received`;
+  if (!S.log.length) return;
+  if (S.log[S.log.length - 1].seq < lastSeq) { lastSeq = 0; logRows = 0; $("logBody").innerHTML = ""; }  // server restarted
+  const fresh = S.log.filter(e => e.seq > lastSeq);
+  if (!fresh.length) return;
+  const box = $("log"), body = $("logBody");
+  const atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 6;
+  body.insertAdjacentHTML("beforeend", fresh.map(e =>
+    `<tr class="${e.text.includes("!=") ? "bad" : ""}"><td>${new Date(e.t * 1000).toLocaleTimeString()}</td>` +
+    `<td>${e.kind}</td><td>${e.i == null ? "" : "#" + e.i}</td><td class="tx">${e.tx ? "→ " + e.tx : ""}</td>` +
+    `<td class="rx">${e.rx ? "← " + e.rx : ""}</td><td>${e.text}</td></tr>`).join(""));
+  lastSeq = fresh[fresh.length - 1].seq;
+  logRows += fresh.length;
+  while (logRows > LOG_MAX) { body.firstElementChild.remove(); logRows--; }
+  if (atBottom) box.scrollTop = box.scrollHeight;
+}
+
+// ---- statistics view
+function renderStats() {
+  const n = S.i, base = S.baseline;
+  $("sRate").textContent = `${n.toLocaleString()} of ${S.trace.n.toLocaleString()} branches` + (S.rate ? ` · ${S.rate.toLocaleString()}/s` : "");
+  $("cards").innerHTML = PRED.map(k => {
+    const a = S.acc[k], vs = a != null && base ? a - base.acc : null;
+    return `<div class="card" style="--c:var(--${k})"><div class="nm">${LABEL[k]}</div>` +
+      `<div class="pct">${a == null ? "–" : fmt(a) + "%"}</div>` +
+      `<div class="sub">${vs == null ? "" : (vs >= 0 ? "+" : "") + fmt(vs, 1) + " vs baseline"} · ${n - (S.correct[k] || 0)} wrong</div></div>`;
+  }).join("");
+  $("sAccTable").innerHTML = `<thead><tr><th>Predictor</th><th class="num">Correct</th><th class="num">Wrong</th><th class="num">MPKI</th><th class="num">≠ model</th></tr></thead>` +
+    PRED.map(k => `<tr><td><span class="dot" style="background:var(--${k})"></span>${LABEL[k]}</td><td class="num">${(S.correct[k] || 0).toLocaleString()}</td>` +
+      `<td class="num">${(n - (S.correct[k] || 0)).toLocaleString()}</td><td class="num">${fmt(S.mpki[k], 1)}</td><td class="num">${S.mismatch[k]}</td></tr>`).join("") +
+    (base ? `<tr><td style="color:var(--muted)">Baseline: always ${base.dir}</td><td class="num" colspan="4">${fmt(base.acc)}%</td></tr>` : "");
+  mismatchText($("mismatch2"), $("mmBig2"), $("mmText2"));
+  // small multiples, one Task Manager graph per predictor
+  const mult = $("multiples");
+  if (mult.children.length !== 4) mult.innerHTML = PRED.map(k =>
+    `<div class="mult"><div class="cap"><b>${LABEL[k]}</b><span id="mc_${k}"></span></div><div class="chart" id="m_${k}"></div></div>`).join("");
+  PRED.forEach((k, j) => {
+    const pts = seriesOf(j, "roll");
+    $("mc_" + k).textContent = pts.length ? `now ${fmt(pts[pts.length - 1][1], 1)}%` : "";
+    tmChart($("m_" + k), pts.length ? [{color: css("--" + k), pts}] : [], {color: css("--" + k), title: "% correct, last 200"});
+  });
+  tmChart($("cumChart"), PRED.map((k, j) => ({color: css("--" + k), pts: seriesOf(j, "cum")})).filter(s => s.pts.length),
+          {title: "% correct so far"});
+  $("sCyc").innerHTML = cycText();
+  renderStatic();
+  renderAgree();
+}
+
+function renderStatic() {
+  if (!S || !S.static) return;
+  let rows = S.static.slice();
+  if (tblWho) { const j = PRED.indexOf(tblWho); rows.sort((a, b) => b.miss[j] - a.miss[j]); }
+  $("staticTable").innerHTML = `<thead><tr><th>Line</th><th>Function</th><th class="num">Runs</th><th class="num">Taken</th><th class="num">Flips</th>` +
+    PRED.map(k => `<th class="num" style="color:var(--${k})">${SHORT[k]}</th>`).join("") + `</tr></thead>` +
+    rows.map(r => `<tr><td title="0x${r.pc}">${r.where ? r.where.split(":").pop() : "0x" + r.pc}</td><td>${r.function || ""}</td>` +
+      `<td class="num">${r.count.toLocaleString()}</td><td class="num">${pct(r.taken)}</td><td class="num">${pct(r.flips)}</td>` +
+      r.miss.map(m => `<td class="num">${pct(1 - m / r.count)}</td>`).join("") + `</tr>`).join("");
+}
+
+function renderAgree() {
+  if (!S.agree || !S.i) { $("agreeTable").innerHTML = ""; $("agreeNote").textContent = "Run some branches first."; return; }
+  const n = S.i;
+  $("agreeTable").innerHTML = `<thead><tr><th>Pair</th><th class="num">Both right</th><th class="num">Only 1st</th><th class="num">Only 2nd</th><th class="num">Both wrong</th></tr></thead>` +
+    Object.entries(S.agree).map(([pair, c]) => {
+      const [a, b] = pair.split("|");
+      return `<tr><td><span style="color:var(--${a})">${SHORT[a]}</span> · <span style="color:var(--${b})">${SHORT[b]}</span></td>` +
+        c.map((v, i) => `<td class="num${i === 1 || i === 2 ? " hi" : ""}">${pct(v / n)}</td>`).join("") + `</tr>`;
+    }).join("");
+  const bg = S.agree["bimodal|gshare"];
+  $("agreeNote").textContent = `The tournament picks between bimodal and gshare, so it can only gain where exactly one of them is right: ` +
+    `${pct((bg[1] + bg[2]) / n)} of branches here. Both are wrong on ${pct(bg[3] / n)}, which no chooser can fix.`;
+}
+
+function render() {
+  const c = S.conn;
+  $("conn").textContent = c.kind ? `${c.kind === "mock" ? "mock board" : c.port} · protocol v${c.version}` : "not connected";
+  $("conn").className = "pill " + (c.kind === "board" ? "on" : c.kind === "mock" ? "mock" : "");
+  document.querySelectorAll("#connSeg button").forEach(b => b.classList.toggle("on", (b.dataset.mock === "1") === (c.kind === "mock") && !!c.kind));
+  const st = $("status");
+  st.textContent = S.err || S.msg; st.title = st.textContent;
+  st.className = S.err ? "err" : "";
+  const running = busy();
+  $("run").disabled = running; $("pause").disabled = !running;
+  ["step1", "step10", "step100"].forEach(id => $(id).disabled = running || (S.trace && S.i >= S.trace.n));
+  ["back1", "back10", "back100"].forEach(id => $(id).disabled = running || !S.i);
+  $("speedLabel").textContent = speedText(S.speed);
+  if (document.activeElement !== $("speed")) $("speed").value = SPEEDS.indexOf(S.speed) >= 0 ? SPEEDS.indexOf(S.speed) : 4;
+  $("bpMismatch").checked = S.breaks.mismatch;
+  $("bpMiss").value = S.breaks.mispredict || "";
+  renderCompiler();
+  if (!S.trace) return;
+  renderPicker();
+  $("count").textContent = `${S.i.toLocaleString()} / ${S.trace.n.toLocaleString()}`;
+  $("prog").style.width = (100 * S.i / S.trace.n) + "%";
+  $("rate").textContent = S.rate ? `${S.rate.toLocaleString()} branches/s while running` : "";
+  if (srcKey !== S.trace.key && !loadingSrc) { loadingSrc = true; loadSource().then(() => { loadingSrc = false; renderLines(); }); }
+  renderLog();                                   // keeps collecting in the other views too
+  if (view === "debug") {
+    renderLines(); renderBranch(); renderAcc(); renderChart();
+  } else if (view === "stats") {
+    renderStats();
+  }
+}
+
+const es = new EventSource("/events");
+es.onmessage = ev => { S = JSON.parse(ev.data); render(); };
+es.onerror = () => { $("status").textContent = "lost the connection to bpdash.py"; $("status").className = "err"; };
+</script>
+</body>
+</html>

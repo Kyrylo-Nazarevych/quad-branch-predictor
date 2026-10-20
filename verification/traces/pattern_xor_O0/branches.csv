@@ -1,0 +1,5 @@
+pc,count,taken,taken_rate,transition_rate,function,line,mnemonic
+800003ac,3001,3000,0.9997,0.0003,main,pattern_xor.c:12,bge
+80000358,3000,1507,0.5023,0.5105,main,pattern_xor.c:15,beq
+8000036c,3000,1541,0.5137,0.4832,main,pattern_xor.c:16,beq
+80000384,3000,1534,0.5113,0.4935,main,pattern_xor.c:17,beq

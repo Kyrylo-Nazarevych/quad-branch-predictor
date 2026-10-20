@@ -1,0 +1,14 @@
+{
+  "program": "pattern_all_in_one",
+  "opt": "-O1",
+  "march": "rv32im",
+  "spike_status": 0,
+  "instructions": 147567,
+  "branches": 22600,
+  "static_branches": 15,
+  "taken_rate": 0.3178,
+  "pc_bits": "7:0",
+  "main_result": 0,
+  "log_lines": 150000,
+  "max_instructions": 2000000
+}

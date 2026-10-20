@@ -1,0 +1,14 @@
+{
+  "program": "pattern_correlated",
+  "opt": "-O0",
+  "march": "rv32im",
+  "spike_status": 0,
+  "instructions": 222118,
+  "branches": 18001,
+  "static_branches": 4,
+  "taken_rate": 0.6652,
+  "pc_bits": "7:0",
+  "main_result": 0,
+  "log_lines": 225000,
+  "max_instructions": 2000000
+}

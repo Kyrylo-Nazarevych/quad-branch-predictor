@@ -1,0 +1,3 @@
+pc,count,taken,taken_rate,transition_rate,function,line,mnemonic
+80000368,4001,4000,0.9998,0.0003,main,pattern_biased.c:14,bge
+80000340,4000,405,0.1013,0.179,main,pattern_biased.c:15,beq

@@ -1,0 +1,14 @@
+{
+  "program": "pattern_aliasing",
+  "opt": "-O1",
+  "march": "rv32im",
+  "spike_status": 0,
+  "instructions": 18970,
+  "branches": 7500,
+  "static_branches": 25,
+  "taken_rate": 0.4801,
+  "pc_bits": "7:0",
+  "main_result": 0,
+  "log_lines": 20000,
+  "max_instructions": 2000000
+}

@@ -1,0 +1,134 @@
+--- kit-fix/bptrace.orig.py	2026-10-17 18:21:13.244604516 +0000
++++ kit-fix/bptrace.py	2026-10-17 18:22:14.182279140 +0000
+@@ -43,11 +43,13 @@
+          "-lgcc", "-Wl,--no-warn-rwx-segments", "-o", out_elf])
+ 
+ 
+-def run_spike(elf, log, isa, max_steps):
++def run_spike(elf, log, isa, max_steps, max_instructions):
+     # Spike stops by itself when main() returns (crt0 writes to "tohost").
+-    # Its exit status is main()'s return value, so a non-zero status is not an error.
++    # crt0 always writes 1, so the exit status is 0; main()'s value is read from the log instead.
++    # --instructions caps a program that never returns. Spike then also exits with 0,
++    # so main() detects the cap by the log length (see "timeout" below).
+     cmd = [SPIKE, f"--isa={isa}", "--priv=m", "-m0x80000000:0x1000000",
+-           "--log-commits", f"--log={log}", elf]
++           f"--instructions={max_instructions}", "--log-commits", f"--log={log}", elf]
+     print("+", " ".join(cmd), file=sys.stderr)
+     try:
+         return subprocess.run(cmd, timeout=max_steps).returncode
+@@ -56,15 +58,40 @@
+         return None
+ 
+ 
+-def extract(log):
+-    """Return (list of (pc, insn)), in execution order."""
+-    seq = []
++def extract(log, result_addr=None):
++    """Return (list of (pc, insn), number of log lines, main()'s return value or None)."""
++    seq, lines, result = [], 0, None
++    store = re.compile(rf"mem 0x0*{result_addr:x} 0x([0-9a-fA-F]+)") if result_addr is not None else None
+     with open(log, errors="replace") as f:
+         for line in f:
+             m = COMMIT.search(line)
+             if m:
++                lines += 1
+                 seq.append((int(m.group(1), 16), int(m.group(2), 16)))
+-    return seq
++                if store:
++                    s = store.search(line)
++                    if s:
++                        v = int(s.group(1), 16)
++                        result = v - (1 << 32) if v >= 1 << 31 else v
++    return seq, lines, result
++
++
++def symbol_addr(elf, name):
++    out = subprocess.run([PREFIX + "nm", elf], check=True, capture_output=True, text=True).stdout
++    for row in out.splitlines():
++        parts = row.split()
++        if len(parts) == 3 and parts[2] == name:
++            return int(parts[0], 16)
++    return None
++
++
++def strip_spin(seq):
++    """Drop crt0's final 'j 3b' loop: Spike only polls tohost every 5,000 instructions,
++    so up to ~5,000 copies of it end the log and would inflate the instruction count."""
++    end = len(seq)
++    while end > 1 and seq[end - 1][0] == seq[-1][0]:
++        end -= 1
++    return seq[:end + 1] if end < len(seq) else seq   # keep one copy: it is the jump that was executed
+ 
+ 
+ def symbolize(elf, pcs):
+@@ -87,11 +114,19 @@
+     ap.add_argument("-o", "--out", required=True, help="output folder")
+     ap.add_argument("--opt", default="O1", help="optimisation level: O0, O1, O2, O3 or Os (O0 keeps every branch you wrote)")
+     ap.add_argument("--march", default="rv32im", help="RISC-V ISA for gcc and Spike")
+-    ap.add_argument("--user-only", action="store_true", help="drop branches in crt0 / mini_libc")
++    ap.add_argument("--user-only", action="store_true",
++                    help="keep only branches in the source file (drops crt0, mini_libc and libgcc)")
+     ap.add_argument("--pc-bits", default="7:0", help="PC bit slice sent to the chip, MSB:LSB (704 design: 7:0; lab design: 9:2)")
+     ap.add_argument("--timeout", type=int, default=120, help="seconds before Spike is stopped")
++    ap.add_argument("--max-instructions", type=int, default=2_000_000,
++                    help="Spike stops after this many instructions (a hung program costs ~53 bytes of log each)")
+     a = ap.parse_args()
+ 
++    # Compressed branches (c.beqz, c.bnez) are 2 bytes with a different opcode: they would vanish from the trace.
++    exts = a.march.lower().split("_")[0][4:]          # "rv32imac_zicsr" -> "imac"
++    if "c" in exts:
++        sys.exit(f"error: --march {a.march} includes the C extension; its compressed branches are not traced. Use e.g. rv32im.")
++
+     a.opt = "-" + a.opt.lstrip("-")           # accept both "O1" and "--opt=-O1"
+     os.makedirs(a.out, exist_ok=True)
+     name = os.path.splitext(os.path.basename(a.source))[0]
+@@ -101,13 +136,20 @@
+     compile_c(a.source, elf, a.opt, a.march)
+     with open(os.path.join(a.out, name + ".dis"), "w") as f:
+         run([PREFIX + "objdump", "-d", "-M", "no-aliases", elf], stdout=f)
+-    status = run_spike(elf, log, a.march, a.timeout)
+-    if status != 0:
+-        print(f"warning: Spike ended with status {status}; the trace may be incomplete", file=sys.stderr)
++    status = run_spike(elf, log, a.march, a.timeout, a.max_instructions)
+ 
+-    seq = extract(log)
+-    # keep only the user program (Spike's boot ROM lives at 0x1000)
++    seq, log_lines, main_result = extract(log, symbol_addr(elf, "main_result"))
++    if status is None:
++        status = "timeout"                          # wall clock ran out
++    elif status == 0 and log_lines >= a.max_instructions:
++        status = "timeout"                          # instruction cap reached: main() never returned
++    if status != 0:
++        print(f"warning: Spike ended with status {status}; the trace is incomplete", file=sys.stderr)
++        main_result = None                          # the only store seen was crt0 clearing .bss
++    # keep only the user program (Spike's boot ROM lives at 0x1000), without crt0's final spin loop
+     seq = [(pc, insn) for pc, insn in seq if pc >= 0x80000000]
++    if status == 0:
++        seq = strip_spin(seq)
+     branches = []                                   # (pc, taken, insn)
+     for i in range(len(seq) - 1):
+         pc, insn = seq[i]
+@@ -116,8 +158,10 @@
+ 
+     syms = symbolize(elf, {pc for pc, _, _ in branches})
+     if a.user_only:
+-        drop = {"_start", "memset", "memcpy", "memmove", "memcmp"}
+-        branches = [b for b in branches if syms.get(b[0], ("?",))[0] not in drop]
++        # by source file, not by function name: libgcc (division on rv32i, all float code) has
++        # debug info too, e.g. "__hidden___udivsi3 div.S:88" or "__mulsf3 mulsf3.c:42"
++        mine = os.path.basename(a.source)
++        branches = [b for b in branches if syms.get(b[0], ("?", "?"))[1].rsplit(":", 1)[0] == mine]
+ 
+     hi, lo = (int(x) for x in a.pc_bits.split(":"))
+     mask = (1 << (hi - lo + 1)) - 1
+@@ -161,7 +205,8 @@
+     summary = {"program": name, "opt": a.opt, "march": a.march, "spike_status": status,
+                "instructions": len(seq), "branches": len(branches), "static_branches": len(per),
+                "taken_rate": round(sum(t for _, t, _ in branches) / max(1, len(branches)), 4),
+-               "pc_bits": a.pc_bits}
++               "pc_bits": a.pc_bits,
++               "main_result": main_result, "log_lines": log_lines, "max_instructions": a.max_instructions}
+     json.dump(summary, open(os.path.join(a.out, "summary.json"), "w"), indent=2)
+     print(json.dumps(summary, indent=2))
+ 

@@ -1,0 +1,7 @@
+pc,count,taken,taken_rate,transition_rate,function,line,mnemonic
+80000340,5616,5184,0.9231,0.1537,multiply,matmul.c:12,bge
+8000038c,468,432,0.9231,0.152,multiply,matmul.c:10,bge
+80000468,156,144,0.9231,0.1484,main,matmul.c:19,bge
+800003a4,39,36,0.9231,0.1316,multiply,matmul.c:9,bge
+80000480,13,12,0.9231,0.0833,main,matmul.c:18,bge
+800004ec,4,3,0.75,0.3333,main,matmul.c:21,bge

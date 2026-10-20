@@ -1,0 +1,15 @@
+[theme]
+base = "light"
+primaryColor = "#15181C"
+backgroundColor = "#F7F8FA"
+secondaryBackgroundColor = "#EDEFF2"
+textColor = "#15181C"
+
+[server]
+maxUploadSize = 1          # MB: C files only
+
+[browser]
+gatherUsageStats = false
+
+[client]
+toolbarMode = "minimal"
