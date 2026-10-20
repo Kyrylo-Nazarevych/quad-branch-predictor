@@ -117,7 +117,7 @@ The chip RTL needs nothing board-specific. Only the wrapper does:
 
 Apache License 2.0, see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
-Built by Ilma Kule, Kyrylo Nazarevych, Vitalii Haponenko and Märten Erik Loor (Chipatron, October 2026), on the work
+Built by Kyrylo Nazarevych, Märten Erik Loor, Ilma Kule and Vitalii Haponenko (Chipathon, October 2026), on the work
 of others:
 
 - the perceptron predictor is Tiny Tapeout design #704 by Tristan Robitaille
